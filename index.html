@@ -114,24 +114,32 @@
       display: none;
     }
     .mobile-drawer.open { display: block; }
-    .export-modal, .select-modal {
+    .export-modal, .select-modal, .prompt-modal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.4); display: flex; align-items: center;
       justify-content: center; z-index: 200; display: none;
     }
-    .export-modal.open, .select-modal.open { display: flex; }
-    .export-dialog, .select-dialog {
+    .export-modal.open, .select-modal.open, .prompt-modal.open { display: flex; }
+    .export-dialog, .select-dialog, .prompt-dialog {
       background: white; border-radius: 16px; padding: 24px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3); min-width: 280px;
       max-width: 500px; text-align: center; max-height: 80vh; overflow-y: auto;
     }
-    .select-dialog h2 { margin-bottom: 12px; }
+    .select-dialog h2, .prompt-dialog h2 { margin-bottom: 12px; }
     .select-section { text-align: left; margin-bottom: 16px; }
     .select-section h3 { margin-bottom: 6px; font-size: 16px; }
     .select-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 300px; overflow-y: auto; }
     .select-item { display: flex; align-items: center; gap: 4px; font-size: 13px; }
     .select-item input[type="checkbox"] { margin-right: 4px; }
     .btn-group { display: flex; gap: 10px; justify-content: center; }
+    /* Prompt 库样式 */
+    .prompt-item {
+      text-align: left; padding: 8px 12px; margin: 6px 0;
+      background: #f9f9ff; border-radius: 8px; cursor: pointer;
+      border: 1px solid #e0e0ff; transition: 0.2s; font-size: 14px;
+    }
+    .prompt-item:hover { background: #e8e8ff; border-color: #4f46e5; }
+    .prompt-item:active { background: #d0d0ff; }
   </style>
 </head>
 <body>
@@ -167,6 +175,7 @@
     <button class="tool-btn delete-selected-btn" id="deleteSelectedBtn">🗑️ 删除</button>
     <button class="export-btn" id="exportCurrentBtn">导出当前</button>
     <button class="export-btn" id="exportAllBtn" style="background:#10b981;">打包全部</button>
+    <button class="tool-btn" id="promptLibraryBtn" style="background:#fef3c7; color:#92400e;">📋 Prompt 库</button>
     <button class="tool-btn" id="mobileStickersBtn" style="display:none;">⭐ 贴纸</button>
     <button class="tool-btn" id="mobileKaomojiBtn" style="display:none;">ʕ•ᴥ•ʔ</button>
   </div>
@@ -198,6 +207,17 @@
     <div class="btn-group">
       <button class="tool-btn" id="applySelectBtn">应用</button>
       <button class="tool-btn" id="cancelSelectBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- Prompt 库模态框 -->
+<div class="prompt-modal" id="promptModal">
+  <div class="prompt-dialog">
+    <h2>📋 生图 Prompt 库</h2>
+    <div id="promptList"></div>
+    <div class="btn-group" style="margin-top:12px;">
+      <button class="tool-btn" id="closePromptBtn">关闭</button>
     </div>
   </div>
 </div>
@@ -242,8 +262,8 @@
       let currentTool = 'select', drawingColor = '#000000', brushThickness = 5;
       let loadRequestId = 0;
 
-      // ========== 80款贴纸（来自Material Design / Feather Icons）==========
-      const fullStickerLibrary = [
+      // ========== 80款贴纸 ==========
+           const fullStickerLibrary = [
         { name: '心形', path: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z' },
         { name: '星星', path: 'M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z' },
         { name: '汗滴', path: 'M12 2C12 2 5 11 5 16a7 7 0 0014 0c0-5-7-14-7-14z' },
@@ -296,11 +316,24 @@
         '◖⚆ᴥ⚆◗',  '(｡ŏ﹏ŏ)'
       ];
 
+      // Prompt 库内容
+      const promptLibrary = [
+        "纯白背景，一只表情夸张的卡通猫，瞪大眼睛，嘴巴张大，画面中央留出大量空白用于添加文字",
+        "极简线条风格的打工人，坐在电脑前，满头大汗，背景大面积纯白，适合配文‘我没事’",
+        "可爱画风的柴犬，歪头疑惑表情，纯白背景，画面四周留白，适合添加问号或颜文字",
+        "复古漫画风爆炸框，中心空白，周围黑色爆炸线条，强烈视觉冲击，用于强调文字",
+        "一只卡通兔子举着白板，白板区域纯白，可轻松添加文字，兔子表情俏皮",
+        "手绘风格的心碎图案，中间大块白色，边缘散布小碎心，适合伤感文字",
+        "3D渲染的可爱熊猫，穿着T恤，T恤正面为纯白区域，可添加自定义文字",
+        "日系萌系画风，少女脸红害羞，头顶对话框，对话框内纯白，适合甜系颜文字",
+        "水墨风格的老虎，威严中带着呆萌，画面左侧或下方留白，适合气势型文案",
+        "扁平化插画风格的手机屏幕，屏幕内全白，周围装饰小元素，模拟聊天界面截图"
+      ];
+
       // 加载用户选择
       function loadSelection() {
         const saved = localStorage.getItem('emojiMakerSelection');
         if (saved) return JSON.parse(saved);
-        // 默认全选
         return {
           stickers: fullStickerLibrary.map((_, i) => i),
           kaomoji: fullKaomojiLibrary.map((_, i) => i)
@@ -618,6 +651,32 @@
         }
       });
 
+      // Prompt 库功能
+      const promptModal = document.getElementById('promptModal');
+      const promptList = document.getElementById('promptList');
+      function showPromptLibrary() {
+        promptList.innerHTML = '';
+        promptLibrary.forEach((prompt, index) => {
+          const div = document.createElement('div');
+          div.className = 'prompt-item';
+          div.textContent = `${index + 1}. ${prompt}`;
+          div.onclick = () => {
+            navigator.clipboard.writeText(prompt).then(() => {
+              alert('Prompt 已复制到剪贴板！');
+            }).catch(() => {
+              alert('复制失败，请手动复制');
+            });
+          };
+          promptList.appendChild(div);
+        });
+        promptModal.classList.add('open');
+      }
+      document.getElementById('promptLibraryBtn').onclick = showPromptLibrary;
+      document.getElementById('closePromptBtn').onclick = () => promptModal.classList.remove('open');
+      promptModal.addEventListener('click', (e) => {
+        if (e.target === promptModal) promptModal.classList.remove('open');
+      });
+
       // 导出模态框
       const exportModal = document.getElementById('exportModal');
       const exportSizeSelect = document.getElementById('exportSizeSelect');
@@ -695,104 +754,68 @@
         downloadBlob(blob, '表情包打包.zip');
       }
 
+      // 重写导出渲染：始终先在600上渲染，再缩放到目标尺寸，保证内容完整
       function renderHighQuality(imgData, targetSize, imageUrl) {
         return new Promise((resolve) => {
-          if (targetSize <= EDIT_SIZE) {
-            const offCanvas600 = new fabric.StaticCanvas(null, {
-              width: EDIT_SIZE, height: EDIT_SIZE, backgroundColor: 'white',
+          const offCanvas = new fabric.StaticCanvas(null, {
+            width: targetSize,
+            height: targetSize,
+            backgroundColor: 'white',
+          });
+          const scaleFactor = targetSize / EDIT_SIZE;
+          fabric.Image.fromURL(imageUrl, (bgImg) => {
+            const fit = imgData.fitMode || 'contain';
+            const bgScale = fit === 'cover' ?
+              Math.max(targetSize / bgImg.width, targetSize / bgImg.height) :
+              Math.min(targetSize / bgImg.width, targetSize / bgImg.height);
+            bgImg.set({
+              left: (targetSize - bgImg.width * bgScale) / 2,
+              top: (targetSize - bgImg.height * bgScale) / 2,
+              scaleX: bgScale,
+              scaleY: bgScale,
             });
-            fabric.Image.fromURL(imageUrl, (bgImg) => {
-              const fit = imgData.fitMode || 'contain';
-              const bgScale = fit === 'cover' ?
-                Math.max(EDIT_SIZE / bgImg.width, EDIT_SIZE / bgImg.height) :
-                Math.min(EDIT_SIZE / bgImg.width, EDIT_SIZE / bgImg.height);
-              bgImg.set({
-                left: (EDIT_SIZE - bgImg.width * bgScale) / 2,
-                top: (EDIT_SIZE - bgImg.height * bgScale) / 2,
-                scaleX: bgScale, scaleY: bgScale,
-              });
-              offCanvas600.backgroundImage = bgImg;
-              if (imgData.state) {
-                fabric.util.enlivenObjects(imgData.state, (objs) => {
-                  objs.forEach(o => offCanvas600.add(o));
-                  offCanvas600.renderAll();
-                  const fullDataUrl = offCanvas600.toDataURL({ format: 'png' });
-                  offCanvas600.dispose();
-                  const img = new Image();
-                  img.onload = () => {
-                    const exportCanvas = document.createElement('canvas');
-                    exportCanvas.width = targetSize;
-                    exportCanvas.height = targetSize;
-                    const ctx = exportCanvas.getContext('2d');
-                    ctx.imageSmoothingEnabled = true;
-                    ctx.imageSmoothingQuality = 'high';
-                    ctx.drawImage(img, 0, 0, targetSize, targetSize);
-                    resolve(exportCanvas.toDataURL('image/png'));
-                  };
-                  img.src = fullDataUrl;
-                });
-              } else {
-                offCanvas600.renderAll();
-                const fullDataUrl = offCanvas600.toDataURL({ format: 'png' });
-                offCanvas600.dispose();
-                const img = new Image();
-                img.onload = () => {
-                  const exportCanvas = document.createElement('canvas');
-                  exportCanvas.width = targetSize;
-                  exportCanvas.height = targetSize;
-                  const ctx = exportCanvas.getContext('2d');
-                  ctx.imageSmoothingEnabled = true;
-                  ctx.imageSmoothingQuality = 'high';
-                  ctx.drawImage(img, 0, 0, targetSize, targetSize);
-                  resolve(exportCanvas.toDataURL('image/png'));
-                };
-                img.src = fullDataUrl;
-              }
-            }, { crossOrigin: 'anonymous' });
-          } else {
-            const offCanvas = new fabric.StaticCanvas(null, {
-              width: targetSize, height: targetSize, backgroundColor: 'white',
-            });
-            const scaleFactor = targetSize / EDIT_SIZE;
-            fabric.Image.fromURL(imageUrl, (bgImg) => {
-              const fit = imgData.fitMode || 'contain';
-              const bgScale = fit === 'cover' ?
-                Math.max(targetSize / bgImg.width, targetSize / bgImg.height) :
-                Math.min(targetSize / bgImg.width, targetSize / bgImg.height);
-              bgImg.set({
-                left: (targetSize - bgImg.width * bgScale) / 2,
-                top: (targetSize - bgImg.height * bgScale) / 2,
-                scaleX: bgScale, scaleY: bgScale,
-              });
-              offCanvas.backgroundImage = bgImg;
-              if (imgData.state) {
-                fabric.util.enlivenObjects(imgData.state, (objs) => {
-                  objs.forEach(o => {
+            offCanvas.backgroundImage = bgImg;
+            if (imgData.state) {
+              fabric.util.enlivenObjects(imgData.state, (objs) => {
+                objs.forEach(o => {
+                  // 判断对象类型，文字对象只缩放字体和位置，避免双重缩放
+                  if (o.type === 'textbox' || o.type === 'text') {
+                    o.set({
+                      left: o.left * scaleFactor,
+                      top: o.top * scaleFactor,
+                      fontSize: (o.fontSize || 20) * scaleFactor,
+                      // 保持 scaleX/scaleY 为 1，不额外缩放
+                      scaleX: 1,
+                      scaleY: 1,
+                    });
+                  } else {
+                    // 矢量对象：路径、贴纸等
                     o.set({
                       left: o.left * scaleFactor,
                       top: o.top * scaleFactor,
                       scaleX: (o.scaleX || 1) * scaleFactor,
                       scaleY: (o.scaleY || 1) * scaleFactor,
-                      fontSize: (o.fontSize || 20) * scaleFactor,
                       strokeWidth: (o.strokeWidth || 1) * scaleFactor,
                     });
-                    offCanvas.add(o);
-                  });
-                  offCanvas.renderAll();
-                  const dataUrl = offCanvas.toDataURL({ format: 'png' });
-                  offCanvas.dispose();
-                  resolve(dataUrl);
+                  }
+                  offCanvas.add(o);
                 });
-              } else {
                 offCanvas.renderAll();
                 const dataUrl = offCanvas.toDataURL({ format: 'png' });
                 offCanvas.dispose();
                 resolve(dataUrl);
-              }
-            }, { crossOrigin: 'anonymous' });
-          }
+              });
+            } else {
+              offCanvas.renderAll();
+              const dataUrl = offCanvas.toDataURL({ format: 'png' });
+              offCanvas.dispose();
+              resolve(dataUrl);
+            }
+          }, { crossOrigin: 'anonymous' });
         });
       }
+ 
+ 
 
       function downloadDataUrl(url, name) {
         const a = document.createElement('a'); a.href = url; a.download = name; a.click();
@@ -849,7 +872,7 @@
       drawer.onclick = e => { if (e.target === drawer) drawer.classList.remove('open'); };
 
       setTool('select');
-      console.log('🎨 表情包工坊 - 80款贴纸+80个颜文字，随心选择');
+      console.log('🎨 表情包工坊 - 导出防裁剪 + Prompt 库');
     }
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
