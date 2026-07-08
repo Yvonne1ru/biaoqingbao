@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover">
+  <title>表情包工坊</title>
+  <script src="https://cdn.bootcdn.net/ajax/libs/fabric.js/5.3.1/fabric.min.js"
+          onerror="this.onerror=null;this.src='https://unpkg.com/fabric@5.3.1/dist/fabric.min.js'"></script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/jszip/3.10.1/jszip.min.js"
+          onerror="this.onerror=null;this.src='https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f0f0; display: flex; justify-content: center; align-items: center;
+      min-height: 100vh; user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    #app {
+      width: 100%; max-width: 1200px; background: white; border-radius: 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.08); overflow: hidden;
+      display: flex; flex-direction: column; height: 95vh; max-height: 900px;
+    }
+    .main-layout { display: flex; flex: 1; overflow: hidden; }
+    .sidebar-left {
+      width: 130px; background: #fafafa; border-right: 1px solid #eee;
+      display: flex; flex-direction: column; padding: 10px; overflow-y: auto;
+    }
+    .thumb-list { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .thumb-item {
+      border: 2px solid transparent; border-radius: 10px; overflow: hidden;
+      cursor: pointer; position: relative; aspect-ratio: 1/1; background: #ddd; transition: 0.2s;
+    }
+    .thumb-item.active { border-color: #4f46e5; box-shadow: 0 0 0 2px rgba(79,70,229,0.3); }
+    .thumb-item img { width: 100%; height: 100%; object-fit: cover; }
+    .thumb-item .delete-btn {
+      position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); color: white;
+      border: none; border-radius: 50%; width: 22px; height: 22px; font-size: 14px;
+      line-height: 1; cursor: pointer; display: none; align-items: center; justify-content: center;
+    }
+    .thumb-item:hover .delete-btn { display: flex; }
+    .add-image-btn {
+      border: 2px dashed #ccc; border-radius: 10px; aspect-ratio: 1/1; display: flex;
+      align-items: center; justify-content: center; font-size: 28px; color: #999;
+      cursor: pointer; transition: 0.2s; background: white;
+    }
+    .add-image-btn:hover { border-color: #4f46e5; color: #4f46e5; }
+    .canvas-area {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      background: #e9e9e9; position: relative; overflow: hidden;
+    }
+    .canvas-wrapper {
+      position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+      border-radius: 8px; overflow: hidden; background: white;
+    }
+    .sidebar-right {
+      width: 260px; background: #fafafa; border-left: 1px solid #eee;
+      display: flex; flex-direction: column; padding: 10px; overflow-y: auto; gap: 12px;
+    }
+    .panel { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .panel h3 { font-size: 14px; margin-bottom: 8px; color: #333; display: flex; justify-content: space-between; align-items: center; }
+    .sticker-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sticker-btn {
+      background: #f0f0f0; border: 1px solid #ddd; border-radius: 8px; width: 48px; height: 48px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;
+    }
+    .sticker-btn svg { width: 32px; height: 32px; fill: none; stroke-width: 2; }
+    .sticker-btn:hover { background: #e0e0ff; border-color: #4f46e5; }
+    .kaomoji-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+    .kaomoji-btn {
+      background: #f0f0f0; border: none; border-radius: 15px; padding: 5px 10px;
+      font-size: 15px; cursor: pointer; transition: 0.2s; white-space: nowrap;
+    }
+    .kaomoji-btn:hover { background: #d9d9ff; }
+    .select-btn {
+      background: #4f46e5; color: white; border: none; border-radius: 6px;
+      padding: 2px 10px; font-size: 12px; cursor: pointer;
+    }
+    .toolbar {
+      height: auto; min-height: 56px; background: #fff; border-top: 1px solid #eee;
+      display: flex; align-items: center; padding: 8px 15px; gap: 10px; flex-wrap: wrap;
+    }
+    .tool-btn {
+      background: #f4f4f5; border: none; border-radius: 10px; padding: 8px 12px;
+      font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 4px;
+      transition: 0.2s; white-space: nowrap;
+    }
+    .tool-btn.active { background: #4f46e5; color: white; }
+    .color-picker { width: 32px; height: 32px; border-radius: 8px; border: 2px solid #ccc; padding: 2px; cursor: pointer; }
+    .slider { width: 80px; }
+    .export-btn {
+      background: #4f46e5; color: white; border: none; border-radius: 10px;
+      padding: 8px 16px; font-weight: 600; cursor: pointer;
+    }
+    .delete-selected-btn { background: #ef4444; color: white; margin-left: auto; }
+    @media (max-width: 768px) {
+      #app { height: 100vh; max-height: 100vh; border-radius: 0; }
+      .main-layout { flex-direction: column; }
+      .sidebar-left {
+        width: 100%; flex-direction: row; overflow-x: auto; padding: 5px;
+        border-right: none; border-bottom: 1px solid #eee; height: 80px;
+      }
+      .sidebar-left .thumb-list { flex-direction: row; gap: 6px; }
+      .thumb-item { width: 60px; height: 60px; flex-shrink: 0; }
+      .add-image-btn { width: 60px; height: 60px; flex-shrink: 0; }
+      .sidebar-right { display: none; }
+      .canvas-area { flex: 1; min-height: 0; }
+      .toolbar { justify-content: center; }
+      .delete-selected-btn { margin-left: 0; }
+    }
+    .mobile-drawer {
+      position: fixed; bottom: 0; left: 0; right: 0; background: white;
+      border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.15);
+      padding: 15px; max-height: 50vh; overflow-y: auto; z-index: 100;
+      display: none;
+    }
+    .mobile-drawer.open { display: block; }
+    .export-modal, .select-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.4); display: flex; align-items: center;
+      justify-content: center; z-index: 200; display: none;
+    }
+    .export-modal.open, .select-modal.open { display: flex; }
+    .export-dialog, .select-dialog {
+      background: white; border-radius: 16px; padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3); min-width: 280px;
+      max-width: 500px; text-align: center; max-height: 80vh; overflow-y: auto;
+    }
+    .select-dialog h2 { margin-bottom: 12px; }
+    .select-section { text-align: left; margin-bottom: 16px; }
+    .select-section h3 { margin-bottom: 6px; font-size: 16px; }
+    .select-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 300px; overflow-y: auto; }
+    .select-item { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+    .select-item input[type="checkbox"] { margin-right: 4px; }
+    .btn-group { display: flex; gap: 10px; justify-content: center; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="main-layout">
+    <div class="sidebar-left">
+      <div class="thumb-list" id="thumbList"></div>
+      <div class="add-image-btn" id="addImageBtn" title="添加图片">＋</div>
+    </div>
+    <div class="canvas-area" id="canvasArea">
+      <div class="canvas-wrapper" id="canvasWrapper">
+        <canvas id="fabricCanvas"></canvas>
+      </div>
+    </div>
+    <div class="sidebar-right" id="rightPanel">
+      <div class="panel">
+        <h3>⭐ 贴纸（80款） <button class="select-btn" id="selectStickersBtn">选择</button></h3>
+        <div class="sticker-grid" id="stickerGrid"></div>
+      </div>
+      <div class="panel">
+        <h3>ʕ•ᴥ•ʔ 颜文字（80个） <button class="select-btn" id="selectKaomojiBtn">选择</button></h3>
+        <div class="kaomoji-grid" id="kaomojiGrid"></div>
+      </div>
+    </div>
+  </div>
+  <div class="toolbar" id="toolbar">
+    <button class="tool-btn active" id="selectTool">🖱️ 选择</button>
+    <button class="tool-btn" id="brushTool">✏️ 画笔</button>
+    <button class="tool-btn" id="textTool">🔤 文字</button>
+    <input type="color" class="color-picker" id="colorPicker" value="#000000" title="颜色">
+    <input type="range" class="slider" id="brushSize" min="1" max="30" value="5" title="大小">
+    <button class="tool-btn" id="fitModeBtn">📐 适应</button>
+    <button class="tool-btn delete-selected-btn" id="deleteSelectedBtn">🗑️ 删除</button>
+    <button class="export-btn" id="exportCurrentBtn">导出当前</button>
+    <button class="export-btn" id="exportAllBtn" style="background:#10b981;">打包全部</button>
+    <button class="tool-btn" id="mobileStickersBtn" style="display:none;">⭐ 贴纸</button>
+    <button class="tool-btn" id="mobileKaomojiBtn" style="display:none;">ʕ•ᴥ•ʔ</button>
+  </div>
+  <div class="mobile-drawer" id="mobileDrawer"></div>
+</div>
+
+<!-- 导出尺寸模态框 -->
+<div class="export-modal" id="exportModal">
+  <div class="export-dialog">
+    <h2>选择导出尺寸</h2>
+    <select id="exportSizeSelect">
+      <option value="240">240 × 240（微信标准）</option>
+      <option value="600" selected>600 × 600（高清）</option>
+      <option value="1200">1200 × 1200（超清）</option>
+      <option value="original">原图（原始分辨率）</option>
+    </select>
+    <div class="btn-group">
+      <button class="tool-btn" id="confirmExportBtn">确定导出</button>
+      <button class="tool-btn" id="cancelExportBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 选择素材模态框 -->
+<div class="select-modal" id="selectModal">
+  <div class="select-dialog">
+    <h2 id="selectModalTitle">选择素材</h2>
+    <div id="selectContent"></div>
+    <div class="btn-group">
+      <button class="tool-btn" id="applySelectBtn">应用</button>
+      <button class="tool-btn" id="cancelSelectBtn">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    function initApp() {
+      if (typeof fabric === 'undefined') {
+        alert('Fabric.js 加载失败，请刷新重试');
+        return;
+      }
+
+      const canvasArea = document.getElementById('canvasArea');
+      const canvasWrapper = document.getElementById('canvasWrapper');
+      const canvasEl = document.getElementById('fabricCanvas');
+      if (!canvasArea || !canvasWrapper || !canvasEl) {
+        alert('页面结构异常');
+        return;
+      }
+
+      const EDIT_SIZE = 600;
+      const canvas = new fabric.Canvas(canvasEl, {
+        width: EDIT_SIZE, height: EDIT_SIZE, backgroundColor: 'white',
+        selection: true, preserveObjectStacking: true,
+      });
+
+      function resizeCanvas() {
+        if (!canvasArea || !canvasWrapper) return;
+        const w = canvasArea.clientWidth * 0.9;
+        const h = canvasArea.clientHeight * 0.9;
+        const size = Math.min(w, h, EDIT_SIZE);
+        canvasWrapper.style.width = size + 'px';
+        canvasWrapper.style.height = size + 'px';
+        canvas.setZoom(size / EDIT_SIZE);
+        canvas.renderAll();
+      }
+      setTimeout(resizeCanvas, 50);
+      window.addEventListener('resize', resizeCanvas);
+
+      const project = { currentId: null, images: {} };
+      let imageCounter = 0, currentFitMode = 'contain';
+      let currentTool = 'select', drawingColor = '#000000', brushThickness = 5;
+      let loadRequestId = 0;
+
+      // ========== 80款贴纸（来自Material Design / Feather Icons）==========
+      const fullStickerLibrary = [
+        { name: '心形', path: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z' },
+        { name: '星星', path: 'M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6-4.8-6 4.8 2.4-7.2-6-4.8h7.6z' },
+        { name: '汗滴', path: 'M12 2C12 2 5 11 5 16a7 7 0 0014 0c0-5-7-14-7-14z' },
+        { name: '问号', path: 'M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3v2m0 4h.01' },
+        { name: '灯泡', path: 'M12 2a7 7 0 00-2 13.74V18a2 2 0 002 2 2 2 0 002-2v-2.26A7 7 0 0012 2zM9 21h6' },
+        { name: '音符', path: 'M9 18V5l12-2v13M9 18a2 2 0 11-4 0 2 2 0 014 0zm12-2a2 2 0 11-4 0 2 2 0 014 0z' },
+        { name: '对话气泡', path: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z' },
+        { name: '箭头', path: 'M5 12h14m-7-7l7 7-7 7' },
+        { name: '爪印', path: 'M12 14c-1.5 0-2.5 1-2.5 2.5S10.5 19 12 19s2.5-1 2.5-2.5S13.5 14 12 14zm-6-4c-.8 0-1.5.7-1.5 1.5S5.2 13 6 13s1.5-.7 1.5-1.5S6.8 10 6 10zm12 0c-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5-.7-1.5-1.5-1.5zm-4-4c-.8 0-1.5.7-1.5 1.5S13.2 9 14 9s1.5-.7 1.5-1.5S14.8 6 14 6z' },
+        { name: '闪光', path: 'M12 2l2 4 4 1-3 3 1 4-4-2-4 2 1-4-3-3 4-1z' },
+        { name: '笑脸', path: 'M12 2a10 10 0 100 20 10 10 0 000-20zm-2 15l-3-3 1.41-1.41L10 14.17l5.59-5.59L17 10l-7 7z' },
+        { name: '月亮', path: 'M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z' },
+        { name: '锁', path: 'M19 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2zm-7 7a2 2 0 110-4 2 2 0 010 4zm3-7V8a4 4 0 00-8 0v3' },
+        { name: '眼睛', path: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zm11 4a4 4 0 100-8 4 4 0 000 8z' },
+        { name: '太阳', path: 'M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42M12 16a4 4 0 100-8 4 4 0 000 8z' },
+        { name: '闪电', path: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
+        { name: '飞机', path: 'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z' },
+        { name: '咖啡', path: 'M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3' },
+        { name: '电视', path: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM17 2l-5 5-5-5' },
+        { name: '相机', path: 'M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2v11zM12 16a4 4 0 100-8 4 4 0 000 8z' },
+        { name: '日历', path: 'M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18' },
+        { name: '时钟', path: 'M12 2a10 10 0 1010 10A10 10 0 0012 2zm0 18a8 8 0 118-8 8 8 0 01-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4.5-2.67z' },
+        { name: '旗帜', path: 'M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7' },
+        { name: '扳手', path: 'M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z' }
+      ];
+
+      // ========== 80个颜文字 ==========
+      const fullKaomojiLibrary = [
+         '(〒﹏〒)',   '(｡•́︿•̀｡)',
+        'ヽ(´▽`)/', '(｡•̀ᴗ-)و',  '(◍•ᴗ•◍)❤',
+         '(づ｡◕‿‿◕｡)づ',  '(◠‿◠✿)', '(｡•́‿•̀｡)',
+        '(◍•ᴗ•◍)ゝ', '(•̀ᴗ•́)و ̑̑', 
+        '(◕‿◕)♡', '(´｡• ᵕ •｡`) ♡', '(｡•́‿•̀｡)♡','┗|∵|┓♪┏|∵|┛',
+        '♪～(*´∀｀*)～～(*´∀｀*)～♪','？？(@△@）？？',
+        'o(￣▽￣)ｄ','～(￣▽￣～)(～￣▽￣)～','⊙▽⊙','(￣▽￣)～■干杯□～(￣▽￣)','o(*≧▽≦)ツ┏━┓',
+        '~(～￣▽￣)～','( *︾▽︾)','ε = = (づ′▽`)づ','o(〃‘▽‘〃)o','( ╯▽╰)','(￣┰￣*)','(⊙x⊙;)',
+        '▄︻┻┳═一∵∴∷∶∵','（╯－_－）╯╧╧','ㄟ( ▔, ▔ )ㄏ','(ˉ▽￣～) 切~~','(⊙﹏⊙)','◐▽◑',
+        '(°ー°〃)','(。﹏。*)','┗( T﹏T )┛','U•ェ•*U','o(=•ェ•=)m','≡[。。]≡','(..)nnn',
+        '(/▽＼)','o(*////▽////*)q','(;´༎ຶД༎ຶ`)','╥﹏╥...','(_ _)( - . - )(~O~)( - . - )',
+        '(ㄏ￣▽￣)ㄏbyeㄟ(￣▽￣ㄟ)','(*￣▽￣)(￣▽:;.…::;','＼（＾∀＾）メ（＾∀＾）ノ',
+        '|(•_•) |•_•) |_•) |•) | )','d=====(￣▽￣*)b','(o゜▽゜)o☆',
+        '（￣▽￣）～■□～（￣▽￣）',
+        '(◔‿◔)', '༼ つ ◕_◕ ༽つ', 
+        '(⊙ˍ⊙)',  
+        '(◕‿◕✿)', '(づ￣ ³￣)づ', '⌒(o＾▽＾o)ノ', '(⁄ ⁄>⁄ω⁄<⁄ ⁄)', '~(˘▾˘~)',
+        '(´▽`ʃ♡ƪ)', 'ψ(｀∇´)ψ',
+        '( ͡° ͜ʖ ͡°)', 'ಠ_ಠ', 'ʕ•ᴥ•ʔ', 
+        '(╬ Ò﹏Ó)', '(｡•́︿•̀｡)', '(◍•ᴗ•◍)', 
+        '(-_-;)',  '（￣へ￣）', 
+        '◖⚆ᴥ⚆◗',  '(｡ŏ﹏ŏ)'
+      ];
+
+      // 加载用户选择
+      function loadSelection() {
+        const saved = localStorage.getItem('emojiMakerSelection');
+        if (saved) return JSON.parse(saved);
+        // 默认全选
+        return {
+          stickers: fullStickerLibrary.map((_, i) => i),
+          kaomoji: fullKaomojiLibrary.map((_, i) => i)
+        };
+      }
+
+      let userSelection = loadSelection();
+
+      function saveSelection() {
+        localStorage.setItem('emojiMakerSelection', JSON.stringify(userSelection));
+      }
+
+      function getSelectedStickers() {
+        return userSelection.stickers.map(i => fullStickerLibrary[i]).filter(Boolean);
+      }
+
+      function getSelectedKaomoji() {
+        return userSelection.kaomoji.map(i => fullKaomojiLibrary[i]).filter(Boolean);
+      }
+
+      // 工具切换
+      function setTool(tool) {
+        currentTool = tool;
+        canvas.isDrawingMode = (tool === 'brush');
+        canvas.selection = (tool === 'select' || tool === 'text');
+        if (tool === 'brush') {
+          canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+          canvas.freeDrawingBrush.color = drawingColor;
+          canvas.freeDrawingBrush.width = brushThickness;
+        }
+        document.querySelectorAll('#toolbar .tool-btn').forEach(b => b.classList.remove('active'));
+        if (tool === 'select') document.getElementById('selectTool').classList.add('active');
+        else if (tool === 'brush') document.getElementById('brushTool').classList.add('active');
+        else if (tool === 'text') document.getElementById('textTool').classList.add('active');
+      }
+
+      function applyColorToSelection(color) {
+        const active = canvas.getActiveObject();
+        if (!active || active === canvas.backgroundImage) return;
+        if (active.type === 'textbox' || active.type === 'text') {
+          active.set({ fill: color });
+        } else if (active.type === 'path' || active.type === 'group') {
+          active.set({ stroke: color });
+        }
+        canvas.renderAll();
+      }
+
+      // 图片管理
+      function addImageFromBlob(blob, url) {
+        const id = 'img_' + (++imageCounter);
+        project.images[id] = { blob, thumbnailUrl: url, state: null, fitMode: 'contain' };
+        if (!project.currentId) { project.currentId = id; loadImageToCanvas(id); }
+        renderThumbnails();
+      }
+
+      function loadImageToCanvas(id) {
+        const imgData = project.images[id];
+        if (!imgData) return;
+        currentFitMode = imgData.fitMode || 'contain';
+        const thisRequestId = ++loadRequestId;
+        canvas.clear(); canvas.backgroundColor = 'white';
+        fabric.Image.fromURL(imgData.thumbnailUrl, (img) => {
+          if (thisRequestId !== loadRequestId) return;
+          applyFit(img);
+          canvas.renderAll();
+          if (imgData.state) {
+            fabric.util.enlivenObjects(imgData.state, (objs) => {
+              if (thisRequestId !== loadRequestId) return;
+              objs.forEach(o => canvas.add(o));
+              canvas.renderAll();
+            });
+          }
+        }, { crossOrigin: 'anonymous' });
+        project.currentId = id;
+        renderThumbnails();
+      }
+
+      function applyFit(bgImg) {
+        bgImg.set({ selectable: false, evented: false });
+        const scale = currentFitMode === 'cover' ?
+          Math.max(EDIT_SIZE/bgImg.width, EDIT_SIZE/bgImg.height) :
+          Math.min(EDIT_SIZE/bgImg.width, EDIT_SIZE/bgImg.height);
+        bgImg.scaleX = scale; bgImg.scaleY = scale;
+        bgImg.left = (EDIT_SIZE - bgImg.width*scale)/2;
+        bgImg.top = (EDIT_SIZE - bgImg.height*scale)/2;
+        canvas.backgroundImage = bgImg;
+      }
+
+      function saveCurrentState() {
+        if (!project.currentId) return;
+        const objs = canvas.getObjects().filter(o => o !== canvas.backgroundImage);
+        project.images[project.currentId].state = objs.map(o => o.toJSON());
+        project.images[project.currentId].fitMode = currentFitMode;
+      }
+
+      function switchImage(id) {
+        if (id === project.currentId) return;
+        saveCurrentState();
+        loadImageToCanvas(id);
+      }
+
+      function deleteImage(id) {
+        if (!confirm('确定删除这张图片及其编辑吗？')) return;
+        if (project.currentId === id) {
+          saveCurrentState();
+          canvas.clear(); canvas.backgroundImage = null;
+          project.currentId = null;
+        }
+        URL.revokeObjectURL(project.images[id].thumbnailUrl);
+        delete project.images[id];
+        const remaining = Object.keys(project.images);
+        if (remaining.length) loadImageToCanvas(remaining[0]);
+        else { canvas.clear(); canvas.backgroundImage = null; canvas.renderAll(); }
+        renderThumbnails();
+      }
+
+      function renderThumbnails() {
+        const container = document.getElementById('thumbList');
+        container.innerHTML = '';
+        for (const [id, data] of Object.entries(project.images)) {
+          const div = document.createElement('div');
+          div.className = 'thumb-item' + (id === project.currentId ? ' active' : '');
+          div.innerHTML = `<img src="${data.thumbnailUrl}" alt=""><button class="delete-btn">×</button>`;
+          div.querySelector('img').onclick = () => switchImage(id);
+          div.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteImage(id); };
+          container.appendChild(div);
+        }
+      }
+
+      function handleFiles(files) {
+        Array.from(files).forEach(f => {
+          if (f.type.startsWith('image/')) addImageFromBlob(f, URL.createObjectURL(f));
+        });
+      }
+
+      document.addEventListener('dragover', e => e.preventDefault());
+      document.addEventListener('drop', e => {
+        e.preventDefault();
+        if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+      });
+      document.getElementById('addImageBtn').onclick = () => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
+        input.onchange = () => { if (input.files.length) handleFiles(input.files); };
+        input.click();
+      };
+      document.addEventListener('paste', e => {
+        for (let item of e.clipboardData?.items || []) {
+          if (item.type.startsWith('image/')) {
+            const blob = item.getAsFile();
+            addImageFromBlob(blob, URL.createObjectURL(blob));
+          }
+        }
+      });
+
+      // 贴纸/颜文字添加
+      function addSticker(pathData) {
+        const path = new fabric.Path(pathData, {
+          stroke: drawingColor, fill: 'rgba(0,0,0,0)', strokeWidth: 2,
+          left: EDIT_SIZE/2, top: EDIT_SIZE/2, originX: 'center', originY: 'center',
+          scaleX: 1.5, scaleY: 1.5,
+        });
+        canvas.add(path); canvas.setActiveObject(path); canvas.renderAll();
+      }
+
+      function addKaomoji(text) {
+        const textbox = new fabric.Textbox(text, {
+          left: EDIT_SIZE/2, top: EDIT_SIZE/2, originX: 'center', originY: 'center',
+          fontSize: 30, fontFamily: 'sans-serif', fill: drawingColor,
+          textAlign: 'center', editable: true,
+        });
+        canvas.add(textbox); canvas.setActiveObject(textbox); canvas.renderAll();
+      }
+
+      function renderStickers(containerId) {
+        const grid = document.getElementById(containerId);
+        if (!grid) return;
+        grid.innerHTML = '';
+        getSelectedStickers().forEach(def => {
+          const btn = document.createElement('div');
+          btn.className = 'sticker-btn';
+          btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="${def.path}" stroke="black" fill="none" stroke-width="2"/></svg>`;
+          btn.title = def.name;
+          btn.onclick = () => addSticker(def.path);
+          grid.appendChild(btn);
+        });
+      }
+
+      function renderKaomoji(containerId) {
+        const grid = document.getElementById(containerId);
+        if (!grid) return;
+        grid.innerHTML = '';
+        getSelectedKaomoji().forEach(k => {
+          const btn = document.createElement('button');
+          btn.className = 'kaomoji-btn';
+          btn.textContent = k;
+          btn.onclick = () => addKaomoji(k);
+          grid.appendChild(btn);
+        });
+      }
+
+      renderStickers('stickerGrid');
+      renderKaomoji('kaomojiGrid');
+
+      // ========== 选择素材模态框 ==========
+      const selectModal = document.getElementById('selectModal');
+      const selectContent = document.getElementById('selectContent');
+      const selectModalTitle = document.getElementById('selectModalTitle');
+      let currentSelectType = '';
+
+      function openSelectModal(type) {
+        currentSelectType = type;
+        selectContent.innerHTML = '';
+        if (type === 'sticker') {
+          selectModalTitle.textContent = '选择贴纸（勾选你喜欢的）';
+          const grid = document.createElement('div');
+          grid.className = 'select-grid';
+          fullStickerLibrary.forEach((def, i) => {
+            const item = document.createElement('div');
+            item.className = 'select-item';
+            item.innerHTML = `<input type="checkbox" id="sticker_${i}" ${userSelection.stickers.includes(i) ? 'checked' : ''}>
+              <label for="sticker_${i}">${def.name}</label>`;
+            grid.appendChild(item);
+          });
+          selectContent.appendChild(grid);
+        } else {
+          selectModalTitle.textContent = '选择颜文字（勾选你喜欢的）';
+          const grid = document.createElement('div');
+          grid.className = 'select-grid';
+          fullKaomojiLibrary.forEach((k, i) => {
+            const item = document.createElement('div');
+            item.className = 'select-item';
+            item.innerHTML = `<input type="checkbox" id="kaomoji_${i}" ${userSelection.kaomoji.includes(i) ? 'checked' : ''}>
+              <label for="kaomoji_${i}">${k}</label>`;
+            grid.appendChild(item);
+          });
+          selectContent.appendChild(grid);
+        }
+        selectModal.classList.add('open');
+      }
+
+      function applySelection() {
+        if (currentSelectType === 'sticker') {
+          const newSelection = [];
+          fullStickerLibrary.forEach((_, i) => {
+            const cb = document.getElementById('sticker_' + i);
+            if (cb && cb.checked) newSelection.push(i);
+          });
+          userSelection.stickers = newSelection;
+        } else if (currentSelectType === 'kaomoji') {
+          const newSelection = [];
+          fullKaomojiLibrary.forEach((_, i) => {
+            const cb = document.getElementById('kaomoji_' + i);
+            if (cb && cb.checked) newSelection.push(i);
+          });
+          userSelection.kaomoji = newSelection;
+        }
+        saveSelection();
+        renderStickers('stickerGrid');
+        renderKaomoji('kaomojiGrid');
+        selectModal.classList.remove('open');
+      }
+
+      document.getElementById('selectStickersBtn').onclick = () => openSelectModal('sticker');
+      document.getElementById('selectKaomojiBtn').onclick = () => openSelectModal('kaomoji');
+      document.getElementById('applySelectBtn').onclick = applySelection;
+      document.getElementById('cancelSelectBtn').onclick = () => selectModal.classList.remove('open');
+
+      // 工具栏事件
+      document.getElementById('selectTool').onclick = () => setTool('select');
+      document.getElementById('brushTool').onclick = () => setTool('brush');
+      document.getElementById('textTool').onclick = () => {
+        setTool('select');
+        const tb = new fabric.Textbox('双击编辑', {
+          left: EDIT_SIZE/2, top: EDIT_SIZE/2, originX: 'center', originY: 'center',
+          fontSize: 28, fontFamily: 'sans-serif', fill: drawingColor, editable: true,
+        });
+        canvas.add(tb); canvas.setActiveObject(tb); canvas.renderAll();
+      };
+      document.getElementById('colorPicker').oninput = e => {
+        drawingColor = e.target.value;
+        if (currentTool === 'brush' && canvas.freeDrawingBrush?.color) {
+          canvas.freeDrawingBrush.color = drawingColor;
+        }
+        applyColorToSelection(drawingColor);
+      };
+      document.getElementById('brushSize').oninput = e => {
+        brushThickness = parseInt(e.target.value);
+        if (canvas.freeDrawingBrush) canvas.freeDrawingBrush.width = brushThickness;
+      };
+      document.getElementById('fitModeBtn').onclick = () => {
+        currentFitMode = currentFitMode === 'contain' ? 'cover' : 'contain';
+        document.getElementById('fitModeBtn').textContent = currentFitMode === 'contain' ? '📐 适应' : '📐 填充';
+        if (canvas.backgroundImage) { applyFit(canvas.backgroundImage); canvas.renderAll(); }
+        if (project.currentId) project.images[project.currentId].fitMode = currentFitMode;
+      };
+      document.getElementById('deleteSelectedBtn').onclick = () => {
+        const active = canvas.getActiveObject();
+        if (active && active !== canvas.backgroundImage) {
+          canvas.remove(active); canvas.renderAll();
+        } else {
+          alert('请先选中一个涂鸦、文字或贴纸');
+        }
+      };
+
+      canvas.on('mouse:dblclick', (opt) => {
+        const target = canvas.findTarget(opt.e, false);
+        if (!target || target === canvas.backgroundImage) {
+          const pointer = canvas.getPointer(opt.e);
+          const tb = new fabric.Textbox('文字', {
+            left: pointer.x, top: pointer.y, fontSize: 28, fontFamily: 'sans-serif',
+            fill: drawingColor, editable: true,
+          });
+          canvas.add(tb); canvas.setActiveObject(tb); canvas.renderAll();
+        }
+      });
+
+      // 导出模态框
+      const exportModal = document.getElementById('exportModal');
+      const exportSizeSelect = document.getElementById('exportSizeSelect');
+      let resolveExportSize;
+
+      function showExportSizeDialog() {
+        return new Promise((resolve) => {
+          exportModal.classList.add('open');
+          resolveExportSize = resolve;
+        });
+      }
+
+      document.getElementById('cancelExportBtn').onclick = () => {
+        exportModal.classList.remove('open');
+        if (resolveExportSize) resolveExportSize(null);
+      };
+
+      document.getElementById('confirmExportBtn').onclick = () => {
+        const size = exportSizeSelect.value;
+        exportModal.classList.remove('open');
+        if (resolveExportSize) resolveExportSize(size);
+      };
+
+      async function exportCurrent() {
+        if (!project.currentId) return alert('请先添加图片');
+        saveCurrentState();
+        const imgData = project.images[project.currentId];
+        if (!imgData) return;
+        const sizeStr = await showExportSizeDialog();
+        if (!sizeStr) return;
+        const originalUrl = URL.createObjectURL(imgData.blob);
+        let targetSize;
+        if (sizeStr === 'original') {
+          const dims = await new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve({ width: img.width, height: img.height });
+            img.src = originalUrl;
+          });
+          targetSize = Math.max(dims.width, dims.height);
+        } else {
+          targetSize = parseInt(sizeStr);
+        }
+        const dataUrl = await renderHighQuality(imgData, targetSize, originalUrl);
+        URL.revokeObjectURL(originalUrl);
+        downloadDataUrl(dataUrl, `emoji_${project.currentId}.png`);
+      }
+
+      async function exportAllZip() {
+        if (!Object.keys(project.images).length) return alert('没有图片');
+        if (typeof JSZip === 'undefined') return alert('打包组件未加载');
+        saveCurrentState();
+        const sizeStr = await showExportSizeDialog();
+        if (!sizeStr) return;
+        const zip = new JSZip();
+        for (const id of Object.keys(project.images)) {
+          const imgData = project.images[id];
+          if (!imgData) continue;
+          const originalUrl = URL.createObjectURL(imgData.blob);
+          let targetSize;
+          if (sizeStr === 'original') {
+            const dims = await new Promise(resolve => {
+              const img = new Image();
+              img.onload = () => resolve({ width: img.width, height: img.height });
+              img.src = originalUrl;
+            });
+            targetSize = Math.max(dims.width, dims.height);
+          } else {
+            targetSize = parseInt(sizeStr);
+          }
+          const dataUrl = await renderHighQuality(imgData, targetSize, originalUrl);
+          URL.revokeObjectURL(originalUrl);
+          zip.file(`emoji_${id}.png`, dataUrl.split(',')[1], { base64: true });
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(blob, '表情包打包.zip');
+      }
+
+      function renderHighQuality(imgData, targetSize, imageUrl) {
+        return new Promise((resolve) => {
+          if (targetSize <= EDIT_SIZE) {
+            const offCanvas600 = new fabric.StaticCanvas(null, {
+              width: EDIT_SIZE, height: EDIT_SIZE, backgroundColor: 'white',
+            });
+            fabric.Image.fromURL(imageUrl, (bgImg) => {
+              const fit = imgData.fitMode || 'contain';
+              const bgScale = fit === 'cover' ?
+                Math.max(EDIT_SIZE / bgImg.width, EDIT_SIZE / bgImg.height) :
+                Math.min(EDIT_SIZE / bgImg.width, EDIT_SIZE / bgImg.height);
+              bgImg.set({
+                left: (EDIT_SIZE - bgImg.width * bgScale) / 2,
+                top: (EDIT_SIZE - bgImg.height * bgScale) / 2,
+                scaleX: bgScale, scaleY: bgScale,
+              });
+              offCanvas600.backgroundImage = bgImg;
+              if (imgData.state) {
+                fabric.util.enlivenObjects(imgData.state, (objs) => {
+                  objs.forEach(o => offCanvas600.add(o));
+                  offCanvas600.renderAll();
+                  const fullDataUrl = offCanvas600.toDataURL({ format: 'png' });
+                  offCanvas600.dispose();
+                  const img = new Image();
+                  img.onload = () => {
+                    const exportCanvas = document.createElement('canvas');
+                    exportCanvas.width = targetSize;
+                    exportCanvas.height = targetSize;
+                    const ctx = exportCanvas.getContext('2d');
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, targetSize, targetSize);
+                    resolve(exportCanvas.toDataURL('image/png'));
+                  };
+                  img.src = fullDataUrl;
+                });
+              } else {
+                offCanvas600.renderAll();
+                const fullDataUrl = offCanvas600.toDataURL({ format: 'png' });
+                offCanvas600.dispose();
+                const img = new Image();
+                img.onload = () => {
+                  const exportCanvas = document.createElement('canvas');
+                  exportCanvas.width = targetSize;
+                  exportCanvas.height = targetSize;
+                  const ctx = exportCanvas.getContext('2d');
+                  ctx.imageSmoothingEnabled = true;
+                  ctx.imageSmoothingQuality = 'high';
+                  ctx.drawImage(img, 0, 0, targetSize, targetSize);
+                  resolve(exportCanvas.toDataURL('image/png'));
+                };
+                img.src = fullDataUrl;
+              }
+            }, { crossOrigin: 'anonymous' });
+          } else {
+            const offCanvas = new fabric.StaticCanvas(null, {
+              width: targetSize, height: targetSize, backgroundColor: 'white',
+            });
+            const scaleFactor = targetSize / EDIT_SIZE;
+            fabric.Image.fromURL(imageUrl, (bgImg) => {
+              const fit = imgData.fitMode || 'contain';
+              const bgScale = fit === 'cover' ?
+                Math.max(targetSize / bgImg.width, targetSize / bgImg.height) :
+                Math.min(targetSize / bgImg.width, targetSize / bgImg.height);
+              bgImg.set({
+                left: (targetSize - bgImg.width * bgScale) / 2,
+                top: (targetSize - bgImg.height * bgScale) / 2,
+                scaleX: bgScale, scaleY: bgScale,
+              });
+              offCanvas.backgroundImage = bgImg;
+              if (imgData.state) {
+                fabric.util.enlivenObjects(imgData.state, (objs) => {
+                  objs.forEach(o => {
+                    o.set({
+                      left: o.left * scaleFactor,
+                      top: o.top * scaleFactor,
+                      scaleX: (o.scaleX || 1) * scaleFactor,
+                      scaleY: (o.scaleY || 1) * scaleFactor,
+                      fontSize: (o.fontSize || 20) * scaleFactor,
+                      strokeWidth: (o.strokeWidth || 1) * scaleFactor,
+                    });
+                    offCanvas.add(o);
+                  });
+                  offCanvas.renderAll();
+                  const dataUrl = offCanvas.toDataURL({ format: 'png' });
+                  offCanvas.dispose();
+                  resolve(dataUrl);
+                });
+              } else {
+                offCanvas.renderAll();
+                const dataUrl = offCanvas.toDataURL({ format: 'png' });
+                offCanvas.dispose();
+                resolve(dataUrl);
+              }
+            }, { crossOrigin: 'anonymous' });
+          }
+        });
+      }
+
+      function downloadDataUrl(url, name) {
+        const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+      }
+      function downloadBlob(blob, name) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      document.getElementById('exportCurrentBtn').onclick = exportCurrent;
+      document.getElementById('exportAllBtn').onclick = exportAllZip;
+
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
+          const active = canvas.getActiveObject();
+          if (active && active !== canvas.backgroundImage) {
+            canvas.remove(active); canvas.renderAll(); e.preventDefault();
+          }
+        }
+      });
+
+      // 移动端
+      function isMobile() { return window.innerWidth <= 768; }
+      function setupMobile() {
+        const mStickers = document.getElementById('mobileStickersBtn');
+        const mKaomoji = document.getElementById('mobileKaomojiBtn');
+        if (isMobile()) {
+          mStickers.style.display = 'inline-flex';
+          mKaomoji.style.display = 'inline-flex';
+          document.getElementById('rightPanel').style.display = 'none';
+        } else {
+          mStickers.style.display = 'none';
+          mKaomoji.style.display = 'none';
+          document.getElementById('rightPanel').style.display = '';
+          document.getElementById('mobileDrawer').classList.remove('open');
+        }
+      }
+      window.addEventListener('resize', setupMobile);
+      setupMobile();
+
+      const drawer = document.getElementById('mobileDrawer');
+      document.getElementById('mobileStickersBtn').onclick = () => {
+        drawer.innerHTML = '<h3>贴纸</h3><div class="sticker-grid" id="mobileStickerGrid"></div><button class="tool-btn" style="margin-top:10px;width:100%;" onclick="document.getElementById(\'mobileDrawer\').classList.remove(\'open\')">关闭</button>';
+        drawer.classList.add('open');
+        setTimeout(() => renderStickers('mobileStickerGrid'), 50);
+      };
+      document.getElementById('mobileKaomojiBtn').onclick = () => {
+        drawer.innerHTML = '<h3>颜文字</h3><div class="kaomoji-grid" id="mobileKaomojiGrid"></div><button class="tool-btn" style="margin-top:10px;width:100%;" onclick="document.getElementById(\'mobileDrawer\').classList.remove(\'open\')">关闭</button>';
+        drawer.classList.add('open');
+        setTimeout(() => renderKaomoji('mobileKaomojiGrid'), 50);
+      };
+      drawer.onclick = e => { if (e.target === drawer) drawer.classList.remove('open'); };
+
+      setTool('select');
+      console.log('🎨 表情包工坊 - 80款贴纸+80个颜文字，随心选择');
+    }
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(initApp, 10);
+    } else {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(initApp, 10));
+    }
+  })();
+</script>
+</body>
+</html>
