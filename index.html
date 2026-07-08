@@ -87,6 +87,11 @@
     .tool-btn.active { background: #4f46e5; color: white; }
     .color-picker { width: 32px; height: 32px; border-radius: 8px; border: 2px solid #ccc; padding: 2px; cursor: pointer; }
     .slider { width: 80px; }
+    .font-select {
+      padding: 6px 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px;
+      background: white; cursor: pointer; margin-left: 5px;
+    }
+    #boldBtn.active { background: #4f46e5; color: white; }
     .export-btn {
       background: #4f46e5; color: white; border: none; border-radius: 10px;
       padding: 8px 16px; font-weight: 600; cursor: pointer;
@@ -132,7 +137,6 @@
     .select-item { display: flex; align-items: center; gap: 4px; font-size: 13px; }
     .select-item input[type="checkbox"] { margin-right: 4px; }
     .btn-group { display: flex; gap: 10px; justify-content: center; }
-    /* Prompt 库样式 */
     .prompt-item {
       text-align: left; padding: 8px 12px; margin: 6px 0;
       background: #f9f9ff; border-radius: 8px; cursor: pointer;
@@ -171,6 +175,17 @@
     <button class="tool-btn" id="textTool">🔤 文字</button>
     <input type="color" class="color-picker" id="colorPicker" value="#000000" title="颜色">
     <input type="range" class="slider" id="brushSize" min="1" max="30" value="5" title="大小">
+    <button class="tool-btn" id="boldBtn" title="加粗" style="font-weight:bold;">𝗕</button>
+    <select id="fontSelect" class="font-select" title="字体">
+      <option value="PingFang SC, Microsoft YaHei, sans-serif">苹方/微软雅黑</option>
+      <option value="Heiti SC, SimHei, sans-serif">黑体-简</option>
+      <option value="Songti SC, SimSun, serif">宋体-简</option>
+      <option value="Kai, KaiTi, STKaiti, serif">楷体</option>
+      <option value="STXingkai, KaiTi, cursive">华文行楷</option>
+      <option value="STCaiyun, cursive">华文彩云</option>
+      <option value="STHupo, fantasy">华文琥珀</option>
+      <option value="ZCOOL KuaiLe, STHupo, fantasy">可爱体（站酷）</option>
+    </select>
     <button class="tool-btn" id="fitModeBtn">📐 适应</button>
     <button class="tool-btn delete-selected-btn" id="deleteSelectedBtn">🗑️ 删除</button>
     <button class="export-btn" id="exportCurrentBtn">导出当前</button>
@@ -260,6 +275,8 @@
       const project = { currentId: null, images: {} };
       let imageCounter = 0, currentFitMode = 'contain';
       let currentTool = 'select', drawingColor = '#000000', brushThickness = 5;
+      let currentFont = 'PingFang SC, Microsoft YaHei, sans-serif';
+      let currentBold = false;
       let loadRequestId = 0;
 
       // ========== 80款贴纸 ==========
@@ -318,17 +335,13 @@
 
       // Prompt 库内容
       const promptLibrary = [
-        "纯白背景，一只表情夸张的卡通猫，瞪大眼睛，嘴巴张大，画面中央留出大量空白用于添加文字",
-        "极简线条风格的打工人，坐在电脑前，满头大汗，背景大面积纯白，适合配文‘我没事’",
-        "可爱画风的柴犬，歪头疑惑表情，纯白背景，画面四周留白，适合添加问号或颜文字",
-        "复古漫画风爆炸框，中心空白，周围黑色爆炸线条，强烈视觉冲击，用于强调文字",
-        "一只卡通兔子举着白板，白板区域纯白，可轻松添加文字，兔子表情俏皮",
-        "手绘风格的心碎图案，中间大块白色，边缘散布小碎心，适合伤感文字",
-        "3D渲染的可爱熊猫，穿着T恤，T恤正面为纯白区域，可添加自定义文字",
-        "日系萌系画风，少女脸红害羞，头顶对话框，对话框内纯白，适合甜系颜文字",
+        "参考图中画风，纯白背景，顶部大面积留白。约束：纯净无文字。一只表情夸张的卡通猫，瞪大眼睛，嘴巴张大，画面中央留出大量空白用于添加文字",
+        "复古水彩插画，80年代儿童插画风，纯白背景，顶部大面积留白。一个穿着白色毛衣、扎着丸子头的小女孩，系着蓝色蝴蝶结，脸蛋红扑扑的，露出非常甜美乖巧但略显呆滞的标志性微笑，双手捧着一个大的生蚝。画面柔和，复古感强。",
+        "参考图中画风，纯白背景，顶部大面积留白。复古水彩插画风格，80年代老挂历风格。一个穿着浅蓝色碎花连衣裙的女孩，齐刘海，扎着两个羊角辫，系着粉色头绳，脸蛋红扑扑的，表情非常震惊和疑惑，右手高高举起一只巨大的红龙虾。极简背景。",
         "水墨风格的老虎，威严中带着呆萌，画面左侧或下方留白，适合气势型文案",
         "扁平化插画风格的手机屏幕，屏幕内全白，周围装饰小元素，模拟聊天界面截图"
       ];
+
 
       // 加载用户选择
       function loadSelection() {
@@ -381,6 +394,22 @@
         canvas.renderAll();
       }
 
+      function updateFontSelectFromObject() {
+        const active = canvas.getActiveObject();
+        const fontSelect = document.getElementById('fontSelect');
+        const boldBtn = document.getElementById('boldBtn');
+        if (active && (active.type === 'textbox' || active.type === 'text')) {
+          const font = active.fontFamily || currentFont;
+          fontSelect.value = font;
+          const isActiveBold = active.fontWeight === 'bold';
+          currentBold = isActiveBold;
+          boldBtn.classList.toggle('active', isActiveBold);
+        } else {
+          fontSelect.value = currentFont;
+          boldBtn.classList.toggle('active', currentBold);
+        }
+      }
+
       // 图片管理
       function addImageFromBlob(blob, url) {
         const id = 'img_' + (++imageCounter);
@@ -404,6 +433,7 @@
               if (thisRequestId !== loadRequestId) return;
               objs.forEach(o => canvas.add(o));
               canvas.renderAll();
+              updateFontSelectFromObject();
             });
           }
         }, { crossOrigin: 'anonymous' });
@@ -502,10 +532,11 @@
       function addKaomoji(text) {
         const textbox = new fabric.Textbox(text, {
           left: EDIT_SIZE/2, top: EDIT_SIZE/2, originX: 'center', originY: 'center',
-          fontSize: 30, fontFamily: 'sans-serif', fill: drawingColor,
-          textAlign: 'center', editable: true,
+          fontSize: 30, fontFamily: currentFont, fontWeight: currentBold ? 'bold' : 'normal',
+          fill: drawingColor, textAlign: 'center', editable: true,
         });
         canvas.add(textbox); canvas.setActiveObject(textbox); canvas.renderAll();
+        updateFontSelectFromObject();
       }
 
       function renderStickers(containerId) {
@@ -609,9 +640,11 @@
         setTool('select');
         const tb = new fabric.Textbox('双击编辑', {
           left: EDIT_SIZE/2, top: EDIT_SIZE/2, originX: 'center', originY: 'center',
-          fontSize: 28, fontFamily: 'sans-serif', fill: drawingColor, editable: true,
+          fontSize: 28, fontFamily: currentFont, fontWeight: currentBold ? 'bold' : 'normal',
+          fill: drawingColor, editable: true,
         });
         canvas.add(tb); canvas.setActiveObject(tb); canvas.renderAll();
+        updateFontSelectFromObject();
       };
       document.getElementById('colorPicker').oninput = e => {
         drawingColor = e.target.value;
@@ -623,6 +656,25 @@
       document.getElementById('brushSize').oninput = e => {
         brushThickness = parseInt(e.target.value);
         if (canvas.freeDrawingBrush) canvas.freeDrawingBrush.width = brushThickness;
+      };
+      document.getElementById('fontSelect').onchange = e => {
+        currentFont = e.target.value;
+        const active = canvas.getActiveObject();
+        if (active && (active.type === 'textbox' || active.type === 'text')) {
+          active.set({ fontFamily: currentFont });
+          canvas.renderAll();
+        }
+        updateFontSelectFromObject();
+      };
+      document.getElementById('boldBtn').onclick = () => {
+        currentBold = !currentBold;
+        const boldBtn = document.getElementById('boldBtn');
+        boldBtn.classList.toggle('active', currentBold);
+        const active = canvas.getActiveObject();
+        if (active && (active.type === 'textbox' || active.type === 'text')) {
+          active.set({ fontWeight: currentBold ? 'bold' : 'normal' });
+          canvas.renderAll();
+        }
       };
       document.getElementById('fitModeBtn').onclick = () => {
         currentFitMode = currentFitMode === 'contain' ? 'cover' : 'contain';
@@ -644,11 +696,21 @@
         if (!target || target === canvas.backgroundImage) {
           const pointer = canvas.getPointer(opt.e);
           const tb = new fabric.Textbox('文字', {
-            left: pointer.x, top: pointer.y, fontSize: 28, fontFamily: 'sans-serif',
+            left: pointer.x, top: pointer.y, fontSize: 28,
+            fontFamily: currentFont, fontWeight: currentBold ? 'bold' : 'normal',
             fill: drawingColor, editable: true,
           });
           canvas.add(tb); canvas.setActiveObject(tb); canvas.renderAll();
+          updateFontSelectFromObject();
         }
+      });
+
+      canvas.on('selection:created', updateFontSelectFromObject);
+      canvas.on('selection:updated', updateFontSelectFromObject);
+      canvas.on('selection:cleared', () => {
+        const fontSelect = document.getElementById('fontSelect');
+        fontSelect.value = currentFont;
+        document.getElementById('boldBtn').classList.toggle('active', currentBold);
       });
 
       // Prompt 库功能
@@ -754,7 +816,6 @@
         downloadBlob(blob, '表情包打包.zip');
       }
 
-      // 重写导出渲染：始终先在600上渲染，再缩放到目标尺寸，保证内容完整
       function renderHighQuality(imgData, targetSize, imageUrl) {
         return new Promise((resolve) => {
           const offCanvas = new fabric.StaticCanvas(null, {
@@ -778,18 +839,17 @@
             if (imgData.state) {
               fabric.util.enlivenObjects(imgData.state, (objs) => {
                 objs.forEach(o => {
-                  // 判断对象类型，文字对象只缩放字体和位置，避免双重缩放
                   if (o.type === 'textbox' || o.type === 'text') {
                     o.set({
                       left: o.left * scaleFactor,
                       top: o.top * scaleFactor,
                       fontSize: (o.fontSize || 20) * scaleFactor,
-                      // 保持 scaleX/scaleY 为 1，不额外缩放
                       scaleX: 1,
                       scaleY: 1,
+                      fontFamily: o.fontFamily || currentFont,
+                      fontWeight: o.fontWeight || 'normal',
                     });
                   } else {
-                    // 矢量对象：路径、贴纸等
                     o.set({
                       left: o.left * scaleFactor,
                       top: o.top * scaleFactor,
@@ -814,8 +874,6 @@
           }, { crossOrigin: 'anonymous' });
         });
       }
- 
- 
 
       function downloadDataUrl(url, name) {
         const a = document.createElement('a'); a.href = url; a.download = name; a.click();
@@ -872,7 +930,7 @@
       drawer.onclick = e => { if (e.target === drawer) drawer.classList.remove('open'); };
 
       setTool('select');
-      console.log('🎨 表情包工坊 - 导出防裁剪 + Prompt 库');
+      console.log('🎨 表情包工坊 - 独立加粗、字体、素材管理、高清导出、Prompt库');
     }
 
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
